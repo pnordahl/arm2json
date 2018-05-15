@@ -27,7 +27,7 @@ $ wget https://developer.arm.com/-/media/Files/pdf/A64_v83A_ISA_xml_00bet6.1.tar
 $ tar -xzf A64_v83A_ISA_xml_00bet6.1.tar.gz
 ```
 
-Create a new folder for a JSON, e.g. `my_arm54_json`:
+Create a new folder for a JSON, e.g. `my_arm64_json`:
 
 ```
 $ mkdir ../my_arm64_json
