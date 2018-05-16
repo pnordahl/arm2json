@@ -16,7 +16,6 @@ class XHTMLParser:
     def __init__(self, xhtml_path, json_path):
         # Initialisation
         self.encodings = []
-        self.instr_aliases = []
         # Does the folder exist?
         full_xhtml_path = os.path.realpath(xhtml_path)
         print "Try %s..." % xhtml_path
@@ -253,7 +252,6 @@ class XHTMLParser:
             href = a.get("href")
             if href not in links:
                 links.append(href.replace(".html", ""))
-        self.instr_aliases += links
         return links
 
     def get_instruction(self, full_path_to_file, file_name):
