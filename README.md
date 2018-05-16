@@ -17,7 +17,7 @@ Clone the repository:
 $ git clone https://github.com/kov4l3nko/ARM64JSON.git
 ```
 
-Create a folder inside, e.g. `arm_specs/`. Download the ARM64 encoding guide from the developer ARM site to the folder, unpack the archive:
+Create a folder inside, e.g. `arm_specs/`. Download the ARM64 encoding guide from the developer ARM site to the folder, unpack the archive (be patient, this may take some time):
 
 ```
 $ cd ARM64JSON

@@ -1,0 +1,11 @@
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temp folders
+/arm_specs/
+/my_arm64_json/
+
+# PyCharm project
+/pycharm/
