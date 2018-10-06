@@ -14,13 +14,13 @@ I tested the script on MacOS, but it _probably_ works on Windows and Linux as we
 Clone the repository:
 
 ```
-$ git clone https://github.com/kov4l3nko/ARM64JSON.git
+$ git clone https://github.com/kov4l3nko/arm2json.git
 ```
 
 Create a folder inside, e.g. `arm_specs/`. Download the ARM64 encoding guide from the developer ARM site to the folder, unpack the archive (be patient, this may take some time):
 
 ```
-$ cd ARM64JSON
+$ cd arm2json
 $ mkdir arm_specs
 $ cd arm_specs/
 $ wget https://developer.arm.com/-/media/Files/pdf/A64_v83A_ISA_xml_00bet6.1.tar.gz
