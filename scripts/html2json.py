@@ -3,7 +3,8 @@
     by Dima Kovalenko
 """
 
-from lxml.html import fromstring
+from lxml.html import fromstring, tostring
+
 import os
 import re
 import json
@@ -18,20 +19,22 @@ class XHTMLParser:
         self.encodings = []
         # Does the folder exist?
         full_xhtml_path = os.path.realpath(xhtml_path)
-        print "Try %s..." % xhtml_path
+        print("Try %s..." % xhtml_path)
         if not os.path.isdir(xhtml_path):
-            print "The first argument must be a path to xhtm folder!"
+            print("The first argument must be a path to xhtm folder!")
             exit()
         # Loop html files in the folder
         for file_name in os.listdir(xhtml_path):
+            print("Processing %s..." % file_name)
             instruction = self.get_instruction(os.path.join(full_xhtml_path, file_name), file_name)
             if instruction is not None:
-                print "Processing %s..." % file_name
                 self.encodings.append(instruction)
+            else:
+                print("* Could not parse instructions for %s" % file_name)
         # Try to save the result to JSON
         if len(self.encodings) > 0:
             full_json_path = os.path.realpath(json_path)
-            print "Generating %s..." % full_json_path
+            print("Generating %s..." % full_json_path)
             result = {
                 "generated_from": xhtml_path,
                 "time": str(datetime.datetime.now()),
@@ -42,10 +45,65 @@ class XHTMLParser:
                 f.write(json.dumps(result, indent=4))
                 f.close()
             except IOError:
-                print "Can't create %s" % full_json_path
+                print("Can't create %s" % full_json_path)
         else:
             # No instruction html found :(
-            print "Nothing was processed, probably you specified a wrong xhtml folder"
+            print("Nothing was processed, probably you specified a wrong xhtml folder")
+
+    @staticmethod
+    def get_assembler_symbols(root, title):
+        symbols = {}
+        direct_pat = re.compile('name.*register.*in\ the\ \"(.*)\"\ field')
+        num_pat = re.compile('number.*register.*in\ the\ \"(.*)\"\ field')
+        tables = root.xpath("//*[contains(@class, 'explanations')]/table")
+        for table in tables:
+            row = table.xpath("tr")[0]
+            td = row.xpath("td")
+            symbol_td = td[0]
+            spec_td = td[1]
+
+            symbols[symbol_td.text] = {}
+            value_spec = spec_td.xpath("a/p")
+            if len(value_spec) > 0:
+                # extract direct mappings, like registers
+                m = direct_pat.findall(value_spec[0].text)
+                if len(m) > 0:
+                    symbols[symbol_td.text]["name_at_field"] = m[0]
+                    continue
+
+                # register numbers
+                m = num_pat.findall(value_spec[0].text)
+                if len(m) > 0:
+                    symbols[symbol_td.text]["value_at_field"] = m[0]
+                    continue
+
+                # values, like immediate
+                pat = re.compile('bit\ element.*encoded\ in\ \"(.*)\"')
+                m = pat.findall(value_spec[0].text)
+                if len(m) > 0:
+                    symbols[symbol_td.text]["value_at_field"] = m[0]
+                    continue
+                pat = re.compile('immediate.*encoded\ in\ the\ \"(.*)\"\ field')
+                m = pat.findall(value_spec[0].text)
+                if len(m) > 0:
+                    symbols[symbol_td.text]["value_at_field"] = m[0]
+                    continue
+            table_spec = spec_td.xpath("table[@class='valuetable']")
+            if len(table_spec) > 0:
+                # value table, for symbols that depend on field(s) values
+                fields = table_spec[0].xpath("thead/tr/th[@class='bitfield']")
+                table_symbol = table_spec[0].xpath("thead/tr/th[@class='symbol']")[0].text
+                value_rows = table_spec[0].xpath("tbody/tr")
+                values_symbols = {}
+                for row in value_rows:
+                    values = row.xpath("td[@class='bitfield']")
+                    symbol = row.xpath("td[@class='symbol']")[0]
+                    values_symbols[":".join([v.text for v in values])] = symbol.text
+                symbols[table_symbol]["value_table"] = {
+                    "fields": [f.text for f in fields],
+                    "values_symbols": values_symbols
+                }
+        return symbols
 
     @staticmethod
     def get_fields(regdiagram, file_name):
@@ -97,7 +155,7 @@ class XHTMLParser:
                     equal = mask_sign[pos-length + 1: pos + 1]
                     # It's impossible to have "!=" and "==" at the same time! Make a check:
                     if "!" in equal and "=" in equal:
-                        print "Error! Fail to parse second row in the regdiagram: %s in %s" % (regdiagram, file_name)
+                        print("Error! Fail to parse second row in the regdiagram: %s in %s" % (regdiagram, file_name))
                         exit()
                     # Add the field to the fields:
                     fields[field_name] = {
@@ -138,11 +196,11 @@ class XHTMLParser:
             pos = pos - length
         # Check masks (by length)
         if len(eq_mask) != 32:
-            print "Error! %s mask is not 32 bits length!" % eq_mask
+            print("Error! %s mask is not 32 bits length!" % eq_mask)
             exit()
         for m in uneq_masks:
             if len(m) != 32:
-                print "Error! %s mask is not 32 bits length!" % m
+                print("Error! %s mask is not 32 bits length!" % m)
                 exit()
         # Return the masks
         return eq_mask, uneq_masks if len(uneq_masks) > 0 else None
@@ -177,7 +235,6 @@ class XHTMLParser:
         result = []
         # Loop the encodings
         for enc in encodings:
-
             h4 = enc.xpath("h4[@class='encoding']")[0]
             title = h4.text
             bitdif = h4.xpath("span[@class='bitdiff']")
@@ -187,6 +244,8 @@ class XHTMLParser:
                 bitdif = None
             arch = XHTMLParser.get_arch(h4)
             asm = enc.xpath("p[@class='asm-code']")[0].text_content()
+            # remove ugly double space after op
+            asm = " ".join(asm.split("  "))
             result.append({"title": title, "arch": arch, "bitdiff": bitdif, "asm": asm})
         return result
 
@@ -244,7 +303,7 @@ class XHTMLParser:
         if len(alias_table) == 0:
             return None
         if len(alias_table) > 1:
-            print "Error! Must me the only alias table in %s" % file_name
+            print("Error! Must me the only alias table in %s" % file_name)
             exit()
         # Mine links from the alias table
         links = []
@@ -258,7 +317,8 @@ class XHTMLParser:
         if full_path_to_file.endswith(".html"):
             # Parse another html file with lxml
             file_handler = open(full_path_to_file, "r")
-            root = fromstring(file_handler.read()).xpath("/html/body")[0]
+            root = fromstring(bytes(file_handler.read(), encoding='utf-8')).xpath("/html/body")[0]
+            # root = fromstring(file_handler.read()).xpath("/html/body")[0]
             file_handler.close()
             # Check if it's an instruction
             h2 = root.xpath("h2[@class='instruction-section']")
@@ -280,6 +340,7 @@ class XHTMLParser:
                 alias_id = alias_p[0].xpath("a")[0].get("href").replace(".html", "")
             else:
                 alias_id = None
+            assembler_symbols = XHTMLParser.get_assembler_symbols(root, title)
             # Do we have a classes for the instruction?
             class_headings = root.xpath("h3[@class='classheading']")
             if len(class_headings) > 0:
@@ -292,8 +353,12 @@ class XHTMLParser:
                     "description": description,
                     "has_aliases": aliases,
                     "alias_of": alias_id,
+                    "assembler_symbols": assembler_symbols,
                     "classes": []
                 }
+                # Find the explanations
+                # explanations = root.xpath("div[@class='explanations']")
+
                 # Loop the classes
                 for ch in class_headings:
                     # Find class title and architecture
@@ -302,10 +367,11 @@ class XHTMLParser:
                     # Find the regdiagram
                     regdiagram = ch.xpath("./following::div[@class='regdiagram-32']")
                     if len(regdiagram) == 0:
-                        print "Error! %s must have a regdiagram for '%s' class heading!" % (
+                        print("Error! %s must have a regdiagram for '%s' class heading!" % (
                             file_name, ch.text_content().strip()
-                        )
+                        ))
                         exit()
+
                     # Get fields, masks and encodings for the instruction
                     fields = XHTMLParser.get_fields(regdiagram[0], file_name)
                     eq_mask, uneq_masks = XHTMLParser.get_masks(regdiagram[0])
@@ -329,7 +395,7 @@ class XHTMLParser:
                 # No, we don't -- parse the only regdiagram
                 regdiagram = root.xpath("div[@class='regdiagram-32']")
                 if len(regdiagram) != 1:
-                    print "Error! %s must have exactly one regdiagram!" % file_name
+                    print("Error! %s must have exactly one regdiagram!" % file_name)
                     exit()
                 # Get fields, masks and encodings for the instruction
                 fields = XHTMLParser.get_fields(regdiagram[0], file_name)
@@ -344,6 +410,7 @@ class XHTMLParser:
                     "description": description,
                     "has_aliases": aliases,
                     "alias_of": alias_id,
+                    "assembler_symbols": assembler_symbols,
                     "classes": [
                         {
                             "title": title,
@@ -370,7 +437,7 @@ if __name__ == "__main__":
 
     # Check args
     if len(sys.argv) != 3 or sys.argv[1].lower() in ["--h", "-h", "--help", "-help", "-?"]:
-        print help
+        print(help)
         exit()
 
     # Do the job
